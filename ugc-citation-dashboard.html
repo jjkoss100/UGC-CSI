@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UGC Citation Sources — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;--accent:#6c5ce7;--accent2:#00cec9;--accent3:#fd79a8;--text:#e2e8f0;--dim:#8892b0;--green:#00b894;--orange:#fdcb6e;--red:#e17055;--blue:#74b9ff}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:24px;min-height:100vh}
+  .header{text-align:center;margin-bottom:32px}
+  .header h1{font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--accent3),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .header p{color:var(--dim);font-size:14px}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:28px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center}
+  .kpi .val{font-size:32px;font-weight:700;color:var(--accent)}
+  .kpi .label{font-size:12px;color:var(--dim);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+  .kpi.green .val{color:var(--green)}
+  .kpi.orange .val{color:var(--orange)}
+  .kpi.pink .val{color:var(--accent3)}
+  .kpi.blue .val{color:var(--blue)}
+  a.kpi-link{text-decoration:none;color:var(--text);cursor:pointer;transition:border-color .2s,transform .15s;position:relative}
+  a.kpi-link:hover{border-color:var(--accent3);transform:translateY(-2px)}
+  .kpi-source{font-size:10px;color:var(--dim);margin-top:6px;opacity:0;transition:opacity .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  a.kpi-link:hover .kpi-source{opacity:1}
+  .kpi-hover-parent{position:relative;cursor:default}
+  .kpi-hover-list{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 8px);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;width:280px;z-index:10;opacity:0;pointer-events:none;transition:opacity .2s;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .kpi-hover-parent:hover .kpi-hover-list{opacity:1;pointer-events:auto}
+  .kpi-hover-item{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text);padding:4px 0}
+  .kpi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .kpi-hover-n{margin-left:auto;color:var(--dim);font-size:10px;font-weight:600}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:14px;color:var(--accent2)}
+  .card.full{grid-column:1/-1}
+  .chart-wrap{position:relative;height:320px}
+  .chart-wrap.tall{height:400px}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--dim);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:8px 10px;border-bottom:1px solid rgba(42,45,58,.5)}
+  tr:hover td{background:rgba(108,92,231,.06)}
+  .cit-bar{height:6px;border-radius:3px;background:var(--accent3);display:inline-block;vertical-align:middle;min-width:2px}
+  .truncate{max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle}
+  a.src-link{color:var(--text);text-decoration:none;transition:color .2s}
+  a.src-link:hover{color:var(--accent3)}
+  a.src-link svg{opacity:.4;margin-left:4px;vertical-align:middle;transition:opacity .2s}
+  a.src-link:hover svg{opacity:1}
+  .cat-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500}
+
+  /* Insight pills */
+  .insight-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:28px}
+  .insight{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;flex:1;min-width:260px}
+  .insight .emoji{font-size:20px;margin-bottom:6px}
+  .insight .ititle{font-size:13px;font-weight:600;color:var(--accent2);margin-bottom:4px}
+  .insight .idesc{font-size:12px;color:var(--dim);line-height:1.5}
+
+  /* Platform cards */
+  .plat-icon{width:20px;height:20px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-right:8px;vertical-align:middle}
+
+  /* Platform filter tabs */
+  .plat-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .plat-tab{padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--dim);transition:all .2s;user-select:none}
+  .plat-tab:hover{border-color:var(--accent3);color:var(--text)}
+  .plat-tab.active{background:var(--accent3);border-color:var(--accent3);color:#fff}
+  .plat-count{font-size:10px;opacity:.7;margin-left:2px}
+  .plat-summary{font-size:12px;color:var(--dim);margin-bottom:12px;padding:8px 12px;background:rgba(253,121,168,.06);border-radius:8px;display:none}
+  .plat-summary.show{display:block}
+  .table-scroll{max-height:600px;overflow-y:auto;overflow-x:auto;border-radius:8px}
+  .table-scroll::-webkit-scrollbar{width:6px}
+  .table-scroll::-webkit-scrollbar-track{background:var(--bg);border-radius:3px}
+  .table-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .table-scroll::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+  .table-scroll table thead{position:sticky;top:0;z-index:2}
+  .table-scroll table thead th{background:var(--card)}
+  .plat-badge{display:inline-block;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:500;background:rgba(255,255,255,.08);color:var(--dim)}
+
+  @media(max-width:768px){.grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>UGC Citation Sources Intelligence</h1>
+  <p>874 user-generated content sources cited by ChatGPT · 3,021 total citations · Data as of March 11, 2026</p>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-row">
+  <div class="kpi"><div class="val">874</div><div class="label">UGC Sources</div></div>
+  <div class="kpi green"><div class="val">3,021</div><div class="label">Total Citations</div></div>
+  <div class="kpi orange"><div class="val">3.5</div><div class="label">Avg Citations</div></div>
+  <a href="https://www.newgrounds.com/wiki/help-information/terms-of-use/art-guidelines" target="_blank" rel="noopener" class="kpi pink kpi-link" title="Newgrounds Wiki - Art Guidelines"><div class="val">83</div><div class="label">Max Citations</div><div class="kpi-source">Newgrounds Wiki - Art Guidelines ↗</div></a>
+  <div class="kpi blue"><div class="val">1</div><div class="label">Median Citations</div></div>
+  <div class="kpi kpi-hover-parent"><div class="val">5</div><div class="label">Prompt Categories</div><div class="kpi-hover-list"><div class="kpi-hover-item"><span class="kpi-dot" style="background:#fd79a8"></span>Uncensored Creative Platforms <span class="kpi-hover-n">294</span></div><div class="kpi-hover-item"><span class="kpi-dot" style="background:#6c5ce7"></span>Fantasy &amp; Artistic Use Cases <span class="kpi-hover-n">258</span></div><div class="kpi-hover-item"><span class="kpi-dot" style="background:#e17055"></span>AI Video Generation &amp; Animation <span class="kpi-hover-n">188</span></div><div class="kpi-hover-item"><span class="kpi-dot" style="background:#00cec9"></span>Free AI Art Creation Platforms <span class="kpi-hover-n">93</span></div><div class="kpi-hover-item"><span class="kpi-dot" style="background:#fdcb6e"></span>Unlimited AI Content Creation <span class="kpi-hover-n">60</span></div></div></div>
+</div>
+
+<!-- Key Insights -->
+<div class="insight-row">
+  <div class="insight">
+    <div class="emoji">🟠</div>
+    <div class="ititle">Reddit Dominates UGC</div>
+    <div class="idesc">304 of 874 sources (35%) are Reddit posts/comments, accounting for 1,300 citations (43% of all UGC citations). Reddit is by far the #1 UGC platform ChatGPT references.</div>
+  </div>
+  <div class="insight">
+    <div class="emoji">🎬</div>
+    <div class="ititle">YouTube is #2</div>
+    <div class="idesc">137 YouTube videos cited (16% of sources) with 482 total citations. Video content is a significant citation driver for AI tool recommendations.</div>
+  </div>
+  <div class="insight">
+    <div class="emoji">🔞</div>
+    <div class="ititle">Uncensored Leads Categories</div>
+    <div class="idesc">294 sources in "Uncensored Creative Platforms" — the largest category. Pixiv, Newgrounds, FurAffinity, and NSFW-friendly platforms dominate the top results.</div>
+  </div>
+  <div class="insight">
+    <div class="emoji">📉</div>
+    <div class="ititle">Long Tail Distribution</div>
+    <div class="idesc">60% of UGC sources have just 1 citation. Only 30 sources (3.4%) have 20+ citations. Getting cited even once is rare; repeat citations are very rare.</div>
+  </div>
+</div>
+
+<!-- Row 1: Platform breakdown + Category breakdown -->
+<div class="grid">
+  <div class="card">
+    <h3>Top Platforms by Citations</h3>
+    <div class="chart-wrap tall"><canvas id="platChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Prompt Category Breakdown</h3>
+    <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+    <div style="margin-top:14px;font-size:11px;color:var(--dim);line-height:1.6">
+      Sources can appear in multiple categories. "Uncensored Creative Platforms" leads in source count (294) while "Unlimited AI Content Creation Tools" has the fewest UGC sources (60), suggesting blogs and official docs dominate that niche.
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Subreddit breakdown + YouTube deep dive -->
+<div class="grid">
+  <div class="card">
+    <h3>Top Subreddits by Citations</h3>
+    <div class="chart-wrap tall"><canvas id="subChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Top YouTube Videos by Citations</h3>
+    <div class="chart-wrap tall"><canvas id="ytChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 2b: YouTube channels + Views vs Citations scatter -->
+<div class="grid">
+  <div class="card">
+    <h3>YouTube Channels — Citations vs Views</h3>
+    <div class="chart-wrap tall"><canvas id="ytScatterChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Top YouTube Channels by Total Citations</h3>
+    <div class="chart-wrap tall"><canvas id="ytChannelChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 3: Top Prompts -->
+<div class="grid">
+  <div class="card full">
+    <h3>Most-Cited Prompts (Which User Questions Drive UGC Citations?)</h3>
+    <div class="chart-wrap tall"><canvas id="promptChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 4: Top Sources Table with Platform Filters -->
+<div class="grid">
+  <div class="card full">
+    <h3>Top Cited UGC Sources — Filter by Platform</h3>
+    <div class="plat-tabs" id="platTabs">
+      <div class="plat-tab active" data-plat="All" onclick="filterPlatform('All',this)">All <span class="plat-count">116</span></div>
+      <div class="plat-tab" data-plat="Reddit" onclick="filterPlatform('Reddit',this)" style="--pc:#FF4500">Reddit <span class="plat-count">306</span></div>
+      <div class="plat-tab" data-plat="YouTube" onclick="filterPlatform('YouTube',this)" style="--pc:#FF0000">YouTube <span class="plat-count">137</span></div>
+      <div class="plat-tab" data-plat="Quora" onclick="filterPlatform('Quora',this)" style="--pc:#B92B27">Quora <span class="plat-count">75</span></div>
+      <div class="plat-tab" data-plat="Facebook" onclick="filterPlatform('Facebook',this)" style="--pc:#1877F2">Facebook <span class="plat-count">44</span></div>
+      <div class="plat-tab" data-plat="Newgrounds" onclick="filterPlatform('Newgrounds',this)" style="--pc:#FFA500">Newgrounds <span class="plat-count">21</span></div>
+      <div class="plat-tab" data-plat="LinkedIn" onclick="filterPlatform('LinkedIn',this)" style="--pc:#0A66C2">LinkedIn <span class="plat-count">14</span></div>
+      <div class="plat-tab" data-plat="TikTok" onclick="filterPlatform('TikTok',this)" style="--pc:#69C9D0">TikTok <span class="plat-count">11</span></div>
+      <div class="plat-tab" data-plat="Other" onclick="filterPlatform('Other',this)">Other <span class="plat-count">166</span></div>
+    </div>
+    <div id="platSummary" class="plat-summary"></div>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>#</th><th>Source</th><th>Platform</th><th>Citations</th><th></th><th>Category</th></tr></thead>
+      <tbody id="topBody"></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- Row 5: Platform efficiency -->
+<div class="grid">
+  <div class="card">
+    <h3>Platform Efficiency (Avg Citations per Source)</h3>
+    <div class="chart-wrap"><canvas id="effChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Platform Share of Total Citations</h3>
+    <div class="chart-wrap"><canvas id="shareChart"></canvas></div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:20px;color:var(--dim);font-size:11px">
+  Generated March 11, 2026 · Data: ChatGPT Citation Sources — UGC Only
+</div>
+
+<script>
+Chart.defaults.color = '#8892b0';
+Chart.defaults.borderColor = 'rgba(42,45,58,.6)';
+Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+Chart.defaults.font.size = 11;
+
+const accent = '#6c5ce7', accent2 = '#00cec9', pink = '#fd79a8', green = '#00b894', orange = '#fdcb6e', red = '#e17055', blue = '#74b9ff';
+
+// === PLATFORM CHART ===
+const platData = [
+  { domain: 'reddit.com', count: 304, citations: 1300 },
+  { domain: 'youtube.com', count: 137, citations: 482 },
+  { domain: 'quora.com', count: 75, citations: 210 },
+  { domain: 'facebook.com', count: 44, citations: 70 },
+  { domain: 'google (vertex)', count: 27, citations: 27 },
+  { domain: 'linkedin.com', count: 14, citations: 52 },
+  { domain: 'learn.microsoft.com', count: 14, citations: 47 },
+  { domain: 'tiktok.com', count: 11, citations: 28 },
+  { domain: 'newgrounds.com', count: 9, citations: 110 },
+  { domain: 'patreon.com', count: 7, citations: 12 },
+  { domain: 'instagram.com', count: 6, citations: 11 },
+  { domain: 'deviantart.com', count: 5, citations: 12 },
+  { domain: 'vocal.media', count: 5, citations: 10 }
+];
+const platColors = {
+  'reddit.com': '#FF4500', 'youtube.com': '#FF0000', 'quora.com': '#B92B27',
+  'facebook.com': '#1877F2', 'linkedin.com': '#0A66C2', 'tiktok.com': '#000',
+  'newgrounds.com': '#FFA500', 'instagram.com': '#E1306C', 'deviantart.com': '#00CC00',
+  'patreon.com': '#FF424D', 'vocal.media': accent2
+};
+
+new Chart(document.getElementById('platChart'), {
+  type: 'bar',
+  data: {
+    labels: platData.map(p => p.domain),
+    datasets: [
+      { label: 'Citations', data: platData.map(p => p.citations), backgroundColor: platData.map(p => platColors[p.domain] || accent + '99'), borderRadius: 4, order: 1 },
+      { label: 'Sources', data: platData.map(p => p.count), backgroundColor: 'rgba(255,255,255,.15)', borderRadius: 4, order: 2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle' } } },
+    scales: { x: { grid: { display: false } } }
+  }
+});
+
+// === CATEGORY CHART ===
+const catData = [
+  { cat: 'Uncensored Creative Platforms', count: 294, cit: 978 },
+  { cat: 'Fantasy & Artistic Use Cases', count: 258, cit: 868 },
+  { cat: 'AI Video Generation & Animation', count: 188, cit: 770 },
+  { cat: 'Free AI Art Creation', count: 93, cit: 356 },
+  { cat: 'Unlimited AI Content Creation', count: 60, cit: 202 }
+];
+new Chart(document.getElementById('catChart'), {
+  type: 'doughnut',
+  data: {
+    labels: catData.map(c => c.cat),
+    datasets: [{
+      data: catData.map(c => c.cit),
+      backgroundColor: [pink, accent, red, accent2, orange],
+      borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'right', labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 10 } } },
+      tooltip: {
+        callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} citations (${catData[ctx.dataIndex].count} sources)` }
+      }
+    }
+  }
+});
+
+// === YOUTUBE TOP VIDEOS CHART (all 28 videos) ===
+const ytVids = [
+  { t: 'Best AI Video Generators in 2026', ch: 'Youri van Hofwegen', v: 188764, c: 28, id: '-vwHldNaGPI', cat: 'vid', p: 6 },
+  { t: 'Best AI Video Generators 2026 (Ranked)', ch: 'Tao Prompts', v: 49661, c: 24, id: 'uCsc0ORcJDo', cat: 'vid', p: 4 },
+  { t: '5 Best AI Tools for Stunning Animation', ch: 'Be Productive', v: 10725, c: 20, id: 'm_klYmeWKjI', cat: 'vid', p: 2 },
+  { t: 'Best AI Cartoon Generator 2026', ch: 'Roboverse', v: 22727, c: 18, id: 'UrjEuIuZ2vg', cat: 'art', p: 4 },
+  { t: 'Fantasy Portrait in Luminar 4', ch: 'Which Wins?', v: 21, c: 17, id: 'pRCnbz8ksXU', cat: 'art', p: 2 },
+  { t: '100+ AI Tools — 11 Will Make You Rich', ch: 'Silicon Valley Girl', v: 130368, c: 15, id: '8W5A7fIuA-A', cat: 'tools', p: 5 },
+  { t: 'AI Video Generators Worst to Best', ch: 'Youri van Hofwegen', v: 234413, c: 15, id: '12Qm1KfgRic', cat: 'vid', p: 3 },
+  { t: 'Top 5 AI Tools For Creators 2026', ch: 'Sandra Di', v: 7720, c: 12, id: 'te5V-24r6CA', cat: 'tools', p: 5 },
+  { t: 'Forget Pixel Art — Try This Method', ch: 'Martin VDA', v: 63875, c: 11, id: 'rKt95peINyk', cat: 'art', p: 1 },
+  { t: 'BEST AI Video Generator', ch: 'Kevin Stratvert', v: 137212, c: 11, id: 'icHBy0AbTQk', cat: 'vid', p: 2 },
+  { t: 'Best FREE AI Video Generators', ch: 'Youri van Hofwegen', v: 284035, c: 10, id: 'pgxFACkE7Fo', cat: 'free', p: 3 },
+  { t: 'Best Free AI Video Generators 2026', ch: 'Dom the AI Tutor', v: 79344, c: 10, id: '73DGdH3ZAZ0', cat: 'free', p: 3 },
+  { t: 'AI Image Generators Worst to Best', ch: 'Roboverse', v: 41519, c: 9, id: '_Ow97llH1YE', cat: 'free', p: 2 },
+  { t: '5 AI Tools That Save Me Hours', ch: 'Austin Armstrong', v: 4651, c: 8, id: 'NDsfACJALfY', cat: 'tools', p: 4 },
+  { t: '6 Best AI Art Generators of 2026', ch: 'Elegant Themes', v: 5174, c: 8, id: '_szju4XQo4M', cat: 'free', p: 3 },
+  { t: 'FREE AI Tool for social media designs', ch: 'Aurelius Tjin', v: 3296, c: 8, id: '4gHBmkNXttA', cat: 'free', p: 1 },
+  { t: 'Creating Fantasy Illustrations', ch: 'Rafael Gonzalez Jr.', v: 1255, c: 8, id: 'Qu0GaWA7Mco', cat: 'art', p: 1 },
+  { t: 'Create AI Video For Marketing', ch: 'Dave Nick', v: 1792, c: 7, id: 'LknW9VyyfqU', cat: 'vid', p: 1 },
+  { t: '8 AI Tools Save 1000 Hours in 2026', ch: 'Futurepedia', v: 29915, c: 6, id: '6sm6C_ra2ek', cat: 'tools', p: 3 },
+  { t: '10 FREE Game Dev Art Tools', ch: 'Soul Engine Studio', v: 9018, c: 6, id: 'Q2HkdfZxuOs', cat: 'art', p: 2 },
+  { t: 'Most Exciting Game Dev Tools', ch: 'Gamefromscratch', v: 53443, c: 6, id: 'sY_vdLlMAEI', cat: 'art', p: 1 },
+  { t: 'Every 2026 AI Video Generator', ch: 'Roboverse', v: 28464, c: 6, id: '_m7rI6RZkSc', cat: 'vid', p: 2 },
+  { t: 'I Tried 500+ AI Tools', ch: 'Simon Squibb', v: 980680, c: 5, id: 'Qgi5hb7yxjU', cat: 'tools', p: 2 },
+  { t: 'Best AI Tools for Content 2025', ch: 'Matt Phelps', v: 2488, c: 5, id: 'zqsyqm0vVQA', cat: 'tools', p: 3 },
+  { t: '7 Best Free Unlimited AI Tools', ch: 'Malva AI', v: 30095, c: 5, id: '522QcYTyNAs', cat: 'tools', p: 2 },
+  { t: '24 Game Dev Tools in 10 Minutes', ch: 'Tim Ruswick', v: 10926, c: 5, id: 'U33i5k9JBkE', cat: 'art', p: 2 },
+  { t: 'Every AI Video Generator in 2026', ch: 'Isa does AI', v: 14316, c: 5, id: 'jYbdm6aKFas', cat: 'vid', p: 2 },
+  { t: 'Best AI Video Generator 2026', ch: 'Affluent Studio', v: 21991, c: 5, id: 'EMKYu0P3NcU', cat: 'vid', p: 2 }
+];
+const scatCatColors = { vid: '#64dfdf', art: '#c77dff', free: '#72efdd', tools: '#ffbe0b' };
+const scatCatLabels = { vid: 'AI Video Gen', art: 'Fantasy/Art', free: 'Free Platforms', tools: 'Unlimited Tools' };
+function fmtV(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n.toString(); }
+new Chart(document.getElementById('ytChart'), {
+  type: 'bar',
+  data: {
+    labels: ytVids.map(v => v.t.length > 35 ? v.t.substring(0,32)+'...' : v.t),
+    datasets: [{ label: 'Citations', data: ytVids.map(v => v.c), backgroundColor: '#FF0000', borderRadius: 4 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: '137 YouTube videos · 482 total citations · Top 13 shown', color: '#8892b0', font: { size: 11 } },
+      tooltip: { callbacks: { afterLabel: ctx => `${ytVids[ctx.dataIndex].ch} · ${fmtV(ytVids[ctx.dataIndex].v)} views` } }
+    },
+    scales: { x: { grid: { display: false } }, y: { ticks: { font: { size: 10 } } } }
+  }
+});
+
+// === YOUTUBE SCATTER (Views vs Citations) — All 28 videos, clickable ===
+// Color = content category, Border thickness = # of unique prompts citing it
+const scatterCanvas = document.getElementById('ytScatterChart');
+const scatterChart = new Chart(scatterCanvas, {
+  type: 'bubble',
+  data: {
+    datasets: Object.keys(scatCatColors).map(cat => ({
+      label: scatCatLabels[cat],
+      data: ytVids.filter(v => v.cat === cat).map(v => ({ x: Math.max(v.v, 10), y: v.c, r: Math.max(6, Math.sqrt(v.v/600)*2), title: v.t, ch: v.ch, views: v.v, vid: v.id, prompts: v.p, catKey: v.cat })),
+      backgroundColor: scatCatColors[cat] + 'AA',
+      borderColor: scatCatColors[cat],
+      borderWidth: ytVids.filter(v => v.cat === cat).map(v => Math.max(1.5, v.p * 1.2)),
+      hoverBorderWidth: 4,
+      hoverBorderColor: '#fff'
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    onHover: (e, elements) => { scatterCanvas.style.cursor = elements.length ? 'pointer' : 'default'; },
+    onClick: (e, elements) => {
+      if (elements.length > 0) {
+        const d = elements[0].element.$context.raw;
+        if (d.vid) window.open('https://www.youtube.com/watch?v=' + d.vid, '_blank');
+      }
+    },
+    plugins: {
+      legend: { display: true, position: 'top', labels: { color: '#ccd6f6', usePointStyle: true, pointStyle: 'circle', padding: 14, font: { size: 11 } } },
+      title: { display: true, text: ['Views ≠ Citations — Color = Topic Category · Thicker border = cited by more prompts', 'Fantasy Portrait (21 views, 17 citations) vs. Simon Squibb (981K views, 5 citations) · Click bubbles to watch'], color: orange, font: { size: 11 } },
+      tooltip: { callbacks: { label: ctx => { const d = ctx.raw; return [`${d.title}`, `${d.ch} · ${scatCatLabels[d.catKey]}`, `Views: ${fmtV(d.views)} · Citations: ${d.y}`, `Cited by ${d.prompts} unique prompt${d.prompts > 1 ? 's' : ''}`, 'Click to open video']; } } }
+    },
+    scales: {
+      x: { type: 'logarithmic', title: { display: true, text: 'Views (log scale)', color: '#8892b0' }, grid: { color: 'rgba(42,45,58,.3)' } },
+      y: { title: { display: true, text: 'Citations', color: '#8892b0' }, grid: { color: 'rgba(42,45,58,.3)' } }
+    }
+  }
+});
+
+// === YOUTUBE CHANNELS ===
+const ytChannels = [
+  { ch: 'Youri van Hofwegen', cit: 53, vids: 3, views: 707212 },
+  { ch: 'Roboverse', cit: 33, vids: 3, views: 92710 },
+  { ch: 'Tao Prompts', cit: 24, vids: 1, views: 49661 },
+  { ch: 'Be Productive', cit: 20, vids: 1, views: 10725 },
+  { ch: 'Which Wins?', cit: 17, vids: 1, views: 21 },
+  { ch: 'Silicon Valley Girl', cit: 15, vids: 1, views: 130368 },
+  { ch: 'Sandra Di', cit: 12, vids: 1, views: 7720 },
+  { ch: 'Kevin Stratvert', cit: 11, vids: 1, views: 137212 },
+  { ch: 'Martin VDA', cit: 11, vids: 1, views: 63875 },
+  { ch: 'Dom the AI Tutor', cit: 10, vids: 1, views: 79344 }
+];
+new Chart(document.getElementById('ytChannelChart'), {
+  type: 'bar',
+  data: {
+    labels: ytChannels.map(c => c.ch),
+    datasets: [
+      { label: 'Citations', data: ytChannels.map(c => c.cit), backgroundColor: '#FF0000', borderRadius: 4 },
+      { label: 'Videos', data: ytChannels.map(c => c.vids), backgroundColor: 'rgba(255,0,0,.25)', borderRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: {
+      legend: { labels: { usePointStyle: true, pointStyle: 'circle' } },
+      tooltip: { callbacks: { afterLabel: ctx => `Total views: ${fmtV(ytChannels[ctx.dataIndex].views)}` } }
+    },
+    scales: { x: { grid: { display: false } } }
+  }
+});
+
+// === SUBREDDIT CHART ===
+const subData = [
+  { sub: 'r/generativeAI', count: 20, cit: 137 },
+  { sub: 'r/gamedev', count: 18, cit: 106 },
+  { sub: 'r/ArtistLounge', count: 14, cit: 68 },
+  { sub: 'r/ProductMarketing', count: 4, cit: 67 },
+  { sub: 'r/graphic_design', count: 11, cit: 62 },
+  { sub: 'r/rpg', count: 8, cit: 54 },
+  { sub: 'r/Fantasy', count: 7, cit: 47 },
+  { sub: 'r/ProductivityApps', count: 5, cit: 42 },
+  { sub: 'r/worldbuilding', count: 6, cit: 38 },
+  { sub: 'r/writing', count: 8, cit: 36 }
+];
+new Chart(document.getElementById('subChart'), {
+  type: 'bar',
+  data: {
+    labels: subData.map(s => s.sub),
+    datasets: [
+      { label: 'Citations', data: subData.map(s => s.cit), backgroundColor: '#FF4500', borderRadius: 4 },
+      { label: 'Posts', data: subData.map(s => s.count), backgroundColor: 'rgba(255,69,0,.3)', borderRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: { legend: { labels: { usePointStyle: true, pointStyle: 'circle' } } },
+    scales: { x: { grid: { display: false } } }
+  }
+});
+
+// === TOP PROMPTS CHART ===
+const promptData = [
+  { p: 'best uncensored creative platforms for artists 2025', n: 294 },
+  { p: 'best AI art generators for fantasy artists', n: 205 },
+  { p: 'best AI video animation tools for content creators', n: 172 },
+  { p: 'best free AI art generators 2025', n: 158 },
+  { p: 'uncensored creative platforms for independent artists 2025', n: 148 },
+  { p: 'best AI video generation tools 2025', n: 130 },
+  { p: 'fantasy art creation tools for indie game developers', n: 120 },
+  { p: 'best unlimited AI content creation tools 2025', n: 98 },
+  { p: 'free ai art generators for social media content creators', n: 87 },
+  { p: 'AI video generation tools for social media marketing', n: 82 },
+  { p: 'best fantasy art creation tools 2025', n: 75 },
+  { p: 'AI video generation tools for small business marketing', n: 68 },
+  { p: 'unlimited AI content creation tools for marketing agencies', n: 52 },
+  { p: 'free ai art generators for small business marketing', n: 45 },
+  { p: 'best uncensored creative platforms for independent artists', n: 40 }
+];
+new Chart(document.getElementById('promptChart'), {
+  type: 'bar',
+  data: {
+    labels: promptData.map(p => p.p.length > 55 ? p.p.substring(0,52) + '...' : p.p),
+    datasets: [{
+      label: 'UGC Sources Cited',
+      data: promptData.map(p => p.n),
+      backgroundColor: promptData.map((_,i) => {
+        if (i < 2) return pink;
+        if (i < 5) return accent;
+        if (i < 9) return accent2;
+        return blue + '88';
+      }),
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: { legend: { display: false }, title: { display: true, text: 'Which user questions cause ChatGPT to cite UGC sources?', color: '#8892b0', font: { size: 11 } } },
+    scales: { x: { grid: { display: false } }, y: { ticks: { font: { size: 10 } } } }
+  }
+});
+
+// === FILTERABLE TABLE ===
+const linkIcon = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+const catColors = {
+  'Uncensored Creative': pink, 'Uncensored Creative Platforms': pink,
+  'AI Video Generation': red, 'AI Video': red,
+  'Fantasy and Artistic': accent, 'Fantasy & Artistic': accent,
+  'Free AI Art': accent2, 'Unlimited AI': orange
+};
+const platColorMap = {
+  'Reddit': '#FF4500', 'YouTube': '#FF0000', 'Quora': '#B92B27',
+  'Facebook': '#1877F2', 'Newgrounds': '#FFA500', 'LinkedIn': '#0A66C2',
+  'TikTok': '#69C9D0', 'Pixiv': '#0096FA', 'FurAffinity': '#FAAF3A',
+  'DeviantArt': '#00CC00', 'Patreon': '#FF424D', 'Instagram': '#E1306C', 'Other': '#8892b0'
+};
+const platInfo = {
+  'Reddit': { total: 306, cit: 1306, desc: 'Reddit threads and comments — 43% of all UGC citations. r/generativeAI and r/gamedev lead.' },
+  'YouTube': { total: 137, cit: 482, desc: 'YouTube videos cited by ChatGPT — AI tool reviews and tutorials dominate.' },
+  'Quora': { total: 75, cit: 210, desc: 'Quora answers — questions about free AI art generators and tools.' },
+  'Facebook': { total: 44, cit: 70, desc: 'Facebook group posts — mostly creative/art community discussions.' },
+  'Newgrounds': { total: 21, cit: 157, desc: 'Newgrounds pages — highest avg citations per source (7.5). Art guidelines and community pages.' },
+  'LinkedIn': { total: 14, cit: 52, desc: 'LinkedIn articles — AI tool roundups and professional content creation guides.' },
+  'TikTok': { total: 11, cit: 28, desc: 'TikTok help/community pages — content creation and community guidelines.' },
+  'Other': { total: 166, cit: 597, desc: 'Pixiv, FurAffinity, DeviantArt, Patreon, Instagram, Microsoft Learn, G2, and more.' }
+};
+
+const allSources = [
+  {t:'Newgrounds Wiki - Art Guidelines',c:83,ca:'Uncensored Creative Platforms',pl:'Newgrounds',url:'https://www.newgrounds.com/wiki/help-information/terms-of-use/art-guidelines'},
+  {t:'I tried 5 AI video tools so you don t have to',c:62,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/ProductMarketing/comments/1em8jrl/i_tried_5_ai_video_tools_so_you_dont_have_to/'},
+  {t:'Best free ai platform to create motion animation videos',c:40,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/generativeAI/comments/1m57glq/best_free_ai_platform_to_create_motion_animation/'},
+  {t:'What are some free gamedev tools for art',c:39,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/vqkqqh/what_are_some_free_gamedev_tools_for_art/'},
+  {t:'Best AI generators to use to create art for your games?',c:35,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/rpg/comments/123623e/best_ai_generators_to_use_to_create_art_for_your/'},
+  {t:'What s the best free AI image generator for quick images?',c:35,ca:'Free AI Art',pl:'Quora',url:'https://www.quora.com/What-s-the-best-free-AI-image-generator-for-quick-high-quality-images'},
+  {t:'What are some good platforms for a NSFW artist to grow?',c:34,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/ArtistLounge/comments/18dp3ae/what_are_some_good_platforms_for_a_nsfw_artist_to/'},
+  {t:'What s age restriction? - pixiv Help Center',c:33,ca:'Uncensored Creative Platforms',pl:'Pixiv',url:'https://www.pixiv.help/hc/en-us/articles/235646007-What-s-age-restriction'},
+  {t:'How does LBRY handle content?',c:29,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://odysee.lbry.com/faq/content'},
+  {t:'Upload Policy - Fur Affinity',c:29,ca:'Uncensored Creative Platforms',pl:'FurAffinity',url:'https://www.furaffinity.net/aup'},
+  {t:'Free software to create art for my games?',c:29,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/18oudc2/free_software_to_create_art_for_my_games/'},
+  {t:'Best AI Video Generators in 2026 (Most Realistic)',c:28,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=-vwHldNaGPI'},
+  {t:'Tested 15 AI Video generators heres what stood out',c:26,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/ProductivityApps/comments/1msy4uj/tested_15_ai_video_generators_heres_what_stood/'},
+  {t:'The 15 most useful (free to use) AI design tools',c:25,ca:'Free AI Art',pl:'Reddit',url:'https://www.reddit.com/r/graphic_design/comments/16rxm5g/the_15_most_useful_free_to_use_ai_design_tools/'},
+  {t:'Which is the best AI video generator for marketing?',c:25,ca:'AI Video Generation',pl:'Other',url:'https://www.g2.com/discussions/which-is-the-best-ai-video-generator-for-marketing-campaigns'},
+  {t:'The Best AI Video Generators in 2026 (Ranked)',c:24,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=uCsc0ORcJDo'},
+  {t:'What are the best softwares for drawing fantasy maps?',c:24,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/Fantasy/comments/b9opz1/what_are_the_best_softwares_free_ones_for_drawing/'},
+  {t:'11 Best Free AI Art Generators 2024',c:24,ca:'Free AI Art',pl:'LinkedIn',url:'https://www.linkedin.com/pulse/11-best-free-ai-art-generators-2024-midjourney-sofiane-halitim-qy5ge'},
+  {t:'What Best Free Digital Art Software for a 2D Game?',c:21,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/12kfszu/what_best_free_digital_art_software_for_a_2d_game/'},
+  {t:'5 Best AI Tools for Creating Visually Stunning Animation',c:20,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=m_klYmeWKjI'},
+  {t:'Newgrounds Wiki - Art Guidelines (alt)',c:19,ca:'Uncensored Creative Platforms',pl:'Newgrounds',url:'https://www.newgrounds.com/wiki/help-information/terms-of-use/art-guidelines'},
+  {t:'Non AI Tools to Create Imaginary Art for a Guy?',c:19,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/worldbuilding/comments/1ikidcw/non_ai_tools_to_create_imaginary_art_for_a_guy/'},
+  {t:'Best AI Cartoon Generator 2026 (For Any Style)',c:18,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=UrjEuIuZ2vg'},
+  {t:'What software would you recommend to make 2D games?',c:18,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/lc0gr5/what_software_would_you_recommend_to_make_the_2d/'},
+  {t:'The 15 most useful (free) AI design tools (alt)',c:18,ca:'Free AI Art',pl:'Reddit',url:'https://www.reddit.com/r/graphic_design/comments/16rxm5g/the_15_most_useful_free_to_use_ai_design_tools/'},
+  {t:'How to Create a Fantasy Portrait in Luminar 4 [2026 Full Guide]',c:17,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=pRCnbz8ksXU'},
+  {t:'What are tools for indie game dev concept art?',c:16,ca:'Fantasy and Artistic',pl:'Quora',url:'https://www.quora.com/What-are-tools-I-can-use-as-an-indie-game-developer-to-create-concept-art-for-characters-and-assets-besides-AI-art-generators'},
+  {t:'What are the best AI tools for video generation in 2025?',c:16,ca:'AI Video Generation',pl:'Quora',url:'https://www.quora.com/What-are-the-best-AI-tools-for-video-generation-in-2025'},
+  {t:'I Tested 100+ AI Tools, These 11 Will Make you Rich in 2026',c:15,ca:'Unlimited AI Content',pl:'YouTube',url:'https://www.youtube.com/watch?v=8W5A7fIuA-A'},
+  {t:'AI Video Generators Ranked from Worst to Best (2026)',c:15,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=12Qm1KfgRic'},
+  {t:'LBRY - Content Freedom',c:15,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://lbry.com/'},
+  {t:'Newgrounds Wiki - Game Guidelines',c:14,ca:'Uncensored Creative Platforms',pl:'Newgrounds',url:'https://www.newgrounds.com/wiki/help-information/terms-of-use/game-guidelines'},
+  {t:'Whats the best free AI art generator?',c:14,ca:'Free AI Art',pl:'Reddit',url:'https://www.reddit.com/r/graphic_design/comments/18s1c9i/whats_the_best_free_ai_art_generator/'},
+  {t:'In your opinion what is the current best video generator?',c:14,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/generativeAI/comments/1rgked8/in_your_opinion_what_is_the_current_best_video/'},
+  {t:'Terms of Service - Fur Affinity',c:14,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://www.furaffinity.net/tos'},
+  {t:'Best Platform for NSFW Art Commissions?',c:13,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/ArtistLounge/comments/kzl28b/best_platform_for_nsfw_art_commissions/'},
+  {t:'What do you use to create art for your worlds?',c:13,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/worldbuilding/comments/180p9nu/what_do_you_use_to_create_art_for_your_worlds/'},
+  {t:'Where to post NSFW art these days?',c:13,ca:'Uncensored Creative Platforms',pl:'Facebook',url:'https://www.facebook.com/groups/1404116417142065/posts/1523192405234465/'},
+  {t:'Tried a bunch of ai video tools for social media',c:13,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/generativeAI/comments/1qw3vgg/tried_a_bunch_of_ai_video_tools_for_social_media/'},
+  {t:'Top 5 AI Tools For Content Creators in 2026',c:12,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=te5V-24r6CA'},
+  {t:'What is the best free AI art generator?',c:12,ca:'Free AI Art',pl:'Quora',url:'https://www.quora.com/What-is-the-best-free-AI-art-generator'},
+  {t:'Where is the best place to post NSFW art?',c:12,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/furry/comments/d2xsgp/where_is_the_best_place_to_post_nsfw_art/'},
+  {t:'What are good free tools for writers to make illustrations?',c:12,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/writing/comments/r3mh4x/what_are_good_free_tools_for_writers_to_make/'},
+  {t:'Forget About Pixel Art - Try This Easier Method for Your 2D Game',c:11,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=rKt95peINyk'},
+  {t:'BEST AI Video Generator (Most Realistic)',c:11,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=icHBy0AbTQk'},
+  {t:'Cara - platform for artists by artists',c:11,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://cara.app/about'},
+  {t:'Best AI tools that u know for video editing/animation?',c:11,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/AfterEffects/comments/14dvvp1/best_ai_tools_that_u_know_for_video/'},
+  {t:'15 Best AI Video Generator - I tested them all',c:11,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/automation/comments/1nkrsf2/15_best_ai_video_generator_i_tested_them_all/'},
+  {t:'Newgrounds - Terms of Use',c:11,ca:'Uncensored Creative Platforms',pl:'Newgrounds',url:'https://www.newgrounds.com/wiki/help-information/terms-of-use'},
+  {t:'Best FREE AI Video Generators (Backed by Data)',c:10,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=pgxFACkE7Fo'},
+  {t:'Best Free AI Video Generators 2026',c:10,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=73DGdH3ZAZ0'},
+  {t:'good platforms for posting uncensored nsfw art?',c:10,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/ArtistLounge/comments/qcb5ks/good_platforms_for_posting_uncensored_nsfw_art/'},
+  {t:'Best Subscription Platform for NSFW Artist?',c:10,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/artbusiness/comments/10uwxnp/best_subscription_platform_for_nsfw_artist/'},
+  {t:'Age Ratings - Wikigrounds',c:10,ca:'Uncensored Creative Platforms',pl:'Newgrounds',url:'https://newgrounds.wiki.gg/wiki/Content_Filter'},
+  {t:'Can I use the images generated in Bing AI for commercial use?',c:10,ca:'Free AI Art',pl:'Other',url:'https://learn.microsoft.com/en-us/answers/questions/09ebb8fd-d350-474f-80d3-c6cf247a141d/can-i-use-the-images-that-i-generated-in-bing-ai'},
+  {t:'5 Best AI Video Generators (2025)',c:10,ca:'AI Video Generation',pl:'TikTok',url:'https://www.tiktok.com/@kevinstratvert/video/7475812610278018346'},
+  {t:'What s the best AI video making tool for social media?',c:10,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/AskMarketing/comments/1f3mnrr/whats_the_best_ai_video_making_tool_for_social/'},
+  {t:'AI Image Generators Ranked from Worst to Best (2026)',c:9,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=_Ow97llH1YE'},
+  {t:'What s the best social media platform for artists?',c:9,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/artbusiness/comments/1ikb01s/whats_the_best_social_media_platform_for_artists/'},
+  {t:'LBRY Foundation',c:9,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://lbry.org/'},
+  {t:'Odysee',c:9,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://en.wikipedia.org/wiki/Odysee'},
+  {t:'What s age restriction? - pixiv (alt)',c:9,ca:'Uncensored Creative Platforms',pl:'Pixiv',url:'https://app.pixiv.help/hc/en-us/articles/39341416236441-What-s-age-restriction'},
+  {t:'What free art tools do you guys use to make art?',c:9,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/1i8cqhi/what_free_art_tools_do_you_guys_use_to_make_the/'},
+  {t:'Hentai Foundry',c:9,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://www.hentai-foundry.com/'},
+  {t:'What are the best programs for creating artwork?',c:9,ca:'Fantasy and Artistic',pl:'Quora',url:'https://www.quora.com/What-are-the-best-programs-for-creating-artwork'},
+  {t:'5 AI Tools That Save Me Hours Every Week (2026)',c:8,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=NDsfACJALfY'},
+  {t:'The 6 Best AI Art Generators of 2026',c:8,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=_szju4XQo4M'},
+  {t:'FREE AI Tool for social media designs and animations!',c:8,ca:'Free AI Art',pl:'YouTube',url:'https://www.youtube.com/watch?v=4gHBmkNXttA'},
+  {t:'Creating Fantasy Illustrations With Procreate',c:8,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=Qu0GaWA7Mco'},
+  {t:'What s the best AI video generation tool for content marketing?',c:8,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/AskMarketing/comments/1n1wla0/whats_the_best_ai_video_generation_tool_for/'},
+  {t:'Newgrounds Art Portal Guidelines',c:8,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://www.newgrounds.com/wiki/help-information/art-guidelines'},
+  {t:'What do you all use to draw your maps?',c:8,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/Fantasy/comments/s2lolj/what_do_you_all_use_to_draw_your_maps/'},
+  {t:'What are the best AI video generators for content creation?',c:8,ca:'AI Video Generation',pl:'Quora',url:'https://www.quora.com/What-are-the-best-AI-video-generators-for-effortless-content-creation'},
+  {t:'Are the images generated by openai dalle commercially available?',c:8,ca:'Fantasy and Artistic',pl:'Other',url:'https://learn.microsoft.com/en-us/answers/questions/1481991/are-the-images-generated-by-openai-dalle-commercia'},
+  {t:'Create AI Video For Marketing Campaigns (Easy Side Hustle)',c:7,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=LknW9VyyfqU'},
+  {t:'What AI tools do you use for digital marketing?',c:7,ca:'Unlimited AI Content',pl:'Reddit',url:'https://www.reddit.com/r/DigitalMarketing/comments/1go9u0j/what_ai_tools_do_you_use_for_digital_marketing/'},
+  {t:'100 Best AI Tools Category Wise (2025 Edition)',c:7,ca:'Unlimited AI Content',pl:'Reddit',url:'https://www.reddit.com/r/WritingWithAI/comments/1khj0kn/100_best_ai_tools_category_wise_2025_edition/'},
+  {t:'Which platforms offer an uncensored AI art generator?',c:7,ca:'Uncensored Creative Platforms',pl:'Quora',url:'https://www.quora.com/Which-platforms-offer-an-uncensored-AI-art-generator'},
+  {t:'As an artist what platforms should I be posting on?',c:7,ca:'Uncensored Creative Platforms',pl:'Quora',url:'https://www.quora.com/As-an-artist-what-platforms-should-I-be-posting-on'},
+  {t:'What s your go-to toolset for game art and UI?',c:7,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/1lidncs/whats_your_goto_toolset_for_game_art_and_ui/'},
+  {t:'These 8 AI Tools Will Save You 1000 Hours in 2026',c:6,ca:'Unlimited AI Content',pl:'YouTube',url:'https://www.youtube.com/watch?v=6sm6C_ra2ek'},
+  {t:'10 FREE Game Dev Art Tools (STOP WASTING MONEY)',c:6,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=Q2HkdfZxuOs'},
+  {t:'The Most Exciting Game Development Tools',c:6,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=sY_vdLlMAEI'},
+  {t:'I Tried Every 2026 AI Video Generator (These Win)',c:6,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=_m7rI6RZkSc'},
+  {t:'The best AI tools to create content in 2025',c:6,ca:'Unlimited AI Content',pl:'Reddit',url:'https://www.reddit.com/r/aipromptprogramming/comments/1m4o1b1/the_best_ai_tools_to_create_content_in_2025_what/'},
+  {t:'Is there a Spotify type application that is more geared towards...',c:6,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/LetsTalkMusic/comments/vgozwr/is_there_a_spotify_type_application_that_is_more/'},
+  {t:'LBRY - Content Freedom (alt)',c:6,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://odysee.lbry.com/'},
+  {t:'Minds',c:6,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://www.minds.com/p/terms'},
+  {t:'AI in Art: How Machines Are Becoming Creative Artists',c:6,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://vocal.media/art/ai-in-art-how-machines-are-becoming-creative-artists'},
+  {t:'Platforms that allow NSFW art?',c:6,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/ArtistLounge/comments/11xmxrp/platforms_that_allow_nsfw_art/'},
+  {t:'FAQ - OpenGameArt.org',c:6,ca:'Fantasy and Artistic',pl:'Other',url:'https://opengameart.org/content/faq'},
+  {t:'10 free No-Sign-Up AI Image Generators',c:6,ca:'Free AI Art',pl:'Facebook',url:'https://www.facebook.com/groups/698593531630485/posts/1458228612333636/'},
+  {t:'Which is the best AI to generate animation videos?',c:6,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/generativeAI/comments/1ll2tt7/which_is_the_best_ai_to_generate_animation_videos/'},
+  {t:'What are the best AI video generation tools right now?',c:6,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/generativeAI/comments/1kqy0xt/what_are_the_best_ai_video_generation_tools_right/'},
+  {t:'What s the best free AI image generator? (alt)',c:6,ca:'Free AI Art',pl:'Quora',url:'https://www.quora.com/What-s-the-best-free-AI-image-generator'},
+  {t:'I Tried 500+ AI Tools, These 9 Will Make You Rich',c:5,ca:'Unlimited AI Content',pl:'YouTube',url:'https://www.youtube.com/watch?v=Qgi5hb7yxjU'},
+  {t:'Best AI Tools for Content Creation in 2025',c:5,ca:'Unlimited AI Content',pl:'YouTube',url:'https://www.youtube.com/watch?v=zqsyqm0vVQA'},
+  {t:'7 Best Free and Unlimited AI Tools in 2025',c:5,ca:'Unlimited AI Content',pl:'YouTube',url:'https://www.youtube.com/watch?v=522QcYTyNAs'},
+  {t:'24 Game Dev Tools in 10 Minutes',c:5,ca:'Fantasy and Artistic',pl:'YouTube',url:'https://www.youtube.com/watch?v=U33i5k9JBkE'},
+  {t:'I Tested EVERY AI Video Generator in 2026. Here\'s the Best Ones.',c:5,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=jYbdm6aKFas'},
+  {t:'The Best AI Video Generator in 2026 (I Tested Them All)',c:5,ca:'AI Video Generation',pl:'YouTube',url:'https://www.youtube.com/watch?v=EMKYu0P3NcU'},
+  {t:'Any good AI generators for character images?',c:5,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/DnD/comments/zqndt1/any_good_ai_generators_for_character_images/'},
+  {t:'What art program to use for video game art?',c:5,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/w50pzt/what_art_program_to_use_for_video_game_art/'},
+  {t:'Most Recommended Software to Create Game Assets?',c:5,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/godot/comments/jjirdw/most_recommended_software_to_create_game_assets/'},
+  {t:'Best AI Tools for Content Creation',c:5,ca:'Unlimited AI Content',pl:'Reddit',url:'https://www.reddit.com/r/artificial/comments/1m0q2kx/best_ai_tools_for_content_creation/'},
+  {t:'What are the best websites for NSFW content?',c:5,ca:'Uncensored Creative Platforms',pl:'Quora',url:'https://www.quora.com/What-are-the-best-websites-for-NSFW-content'},
+  {t:'DeviantArt - About',c:5,ca:'Uncensored Creative Platforms',pl:'DeviantArt',url:'https://www.deviantart.com/about'},
+  {t:'SubscribeStar',c:5,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://www.subscribestar.com/'},
+  {t:'Good platforms for NSFW writing?',c:5,ca:'Uncensored Creative Platforms',pl:'Reddit',url:'https://www.reddit.com/r/freelanceWriters/comments/1bnmmhr/good_platforms_for_nsfw_writing/'},
+  {t:'Mastodon.ART Mastodon Server Instance',c:4,ca:'Uncensored Creative Platforms',pl:'Other',url:'https://mastodonservers.net/server/1833-mastodon-art'},
+  {t:'Can we allow users to download DALL-E 3 images?',c:4,ca:'Fantasy and Artistic',pl:'Other',url:'https://community.openai.com/t/can-we-allow-users-to-download-images-generated-by-dall-e-3-from-our-app/740192'},
+  {t:'What is the best AI art generator for fantasy?',c:4,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/aiArt/comments/1668602/what_is_the_best_ai_art_generator_for_fantasy/'},
+  {t:'2d Art Tools for Indies',c:4,ca:'Fantasy and Artistic',pl:'Reddit',url:'https://www.reddit.com/r/gamedev/comments/2ctbj0/2d_art_tools_for_indies/'},
+  {t:'Top 8 Best Free AI Video Generation Tools (2025)',c:4,ca:'AI Video Generation',pl:'LinkedIn',url:'https://www.linkedin.com/posts/amitrawal-ai_top-8-best-free-ai-video-generation-tools-activity-7398321993231532032-VdaH'},
+  {t:'7 Best AI Video Generator Reviews of each platform',c:4,ca:'AI Video Generation',pl:'Reddit',url:'https://www.reddit.com/r/AIToolTesting/comments/1p2wc3h/7_best_ai_video_generator_reviews_of_each_platform/'},
+  {t:'What are the top AI video generator tools this year?',c:4,ca:'AI Video Generation',pl:'Other',url:'https://kismac-ng.org/forum/t/what-are-the-top-ai-video-generator-tools-this-year/1971'}
+];
+
+function filterPlatform(plat, el) {
+  document.querySelectorAll('.plat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+
+  const filtered = plat === 'All'
+    ? allSources.filter((s, i, arr) => arr.findIndex(x => x.t === s.t && x.pl === s.pl) === i).sort((a,b) => b.c - a.c)
+    : allSources.filter(s => s.pl === plat).filter((s, i, arr) => arr.findIndex(x => x.t === s.t) === i).sort((a,b) => b.c - a.c);
+
+  const summary = document.getElementById('platSummary');
+  if (plat !== 'All' && platInfo[plat]) {
+    const info = platInfo[plat];
+    summary.className = 'plat-summary show';
+    summary.innerHTML = `<strong style="color:${platColorMap[plat]}">${plat}</strong>: ${info.total} sources · ${info.cit} citations · ${info.desc}`;
+  } else {
+    summary.className = 'plat-summary';
+  }
+
+  const tbody = document.getElementById('topBody');
+  tbody.innerHTML = '';
+  const maxCit = filtered.length > 0 ? filtered[0].c : 1;
+  filtered.forEach((s, i) => {
+    const pct = (s.c / maxCit * 100).toFixed(0);
+    const cc = Object.entries(catColors).find(([k]) => s.ca.includes(k));
+    const color = cc ? cc[1] : blue;
+    const pc = platColorMap[s.pl] || '#8892b0';
+    tbody.innerHTML += `<tr>
+      <td style="color:var(--dim)">${i+1}</td>
+      <td><a href="${s.url}" target="_blank" rel="noopener" class="truncate src-link" title="${s.t}">${s.t} ${linkIcon}</a></td>
+      <td><span class="plat-badge" style="background:${pc}22;color:${pc}">${s.pl}</span></td>
+      <td style="font-weight:600">${s.c}</td>
+      <td><div class="cit-bar" style="width:${pct}px;background:${pc}"></div></td>
+      <td><span class="cat-badge" style="background:${color}22;color:${color}">${s.ca}</span></td>
+    </tr>`;
+  });
+}
+
+// Initial render
+filterPlatform('All', document.querySelector('.plat-tab'));
+
+// === EFFICIENCY CHART ===
+const effData = [
+  { d: 'newgrounds.com', avg: 12.2, n: 9 },
+  { d: 'reddit.com', avg: 4.3, n: 304 },
+  { d: 'linkedin.com', avg: 3.7, n: 14 },
+  { d: 'youtube.com', avg: 3.5, n: 137 },
+  { d: 'learn.microsoft.com', avg: 3.4, n: 14 },
+  { d: 'quora.com', avg: 2.8, n: 75 },
+  { d: 'tiktok.com', avg: 2.5, n: 11 },
+  { d: 'deviantart.com', avg: 2.4, n: 5 },
+  { d: 'facebook.com', avg: 1.6, n: 44 },
+  { d: 'instagram.com', avg: 1.8, n: 6 }
+];
+new Chart(document.getElementById('effChart'), {
+  type: 'bar',
+  data: {
+    labels: effData.map(e => e.d),
+    datasets: [{ label: 'Avg Citations/Source', data: effData.map(e => e.avg),
+      backgroundColor: effData.map(e => platColors[e.d] || accent2 + '99'),
+      borderRadius: 4 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Newgrounds gets 12.2 avg citations/source — 3x Reddit\'s rate', color: orange, font: { size: 11 } },
+      tooltip: { callbacks: { afterLabel: ctx => `${effData[ctx.dataIndex].n} sources` } }
+    },
+    scales: { x: { grid: { display: false } } }
+  }
+});
+
+// === SHARE CHART ===
+new Chart(document.getElementById('shareChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Reddit','YouTube','Quora','Newgrounds','Facebook','LinkedIn','Microsoft Learn','TikTok','Other'],
+    datasets: [{
+      data: [1300, 482, 210, 110, 70, 52, 47, 28, 722],
+      backgroundColor: ['#FF4500','#FF0000','#B92B27','#FFA500','#1877F2','#0A66C2','#00BCF2','#000',accent+'88'],
+      borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'right', labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 10 } } },
+      tooltip: {
+        callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} citations (${(ctx.raw/3021*100).toFixed(1)}%)` }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
